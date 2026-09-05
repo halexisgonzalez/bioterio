@@ -16,9 +16,15 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
 
 import cv2
-from bioterio_tools.node_client import NodeEndpoints, open_stream
+from bioterio_tools.node_client import (
+    DEFAULT_CONNECT_RETRIES,
+    NodeEndpoints,
+    NodeUnreachableError,
+    open_stream,
+)
 
 from bioterio_server.detection.background_subtraction import (
     BackgroundSubtractionDetector,
@@ -85,12 +91,22 @@ def run(host: str) -> None:
     )
 
     try:
+        consecutive_failures = 0
         while True:
             ok, frame = stream.read()
             if not ok:
-                logger.warning("Frame perdido, reintentando...")
+                consecutive_failures += 1
+                logger.warning("Frame perdido (%d seguidos)", consecutive_failures)
+                if consecutive_failures >= DEFAULT_CONNECT_RETRIES:
+                    logger.error("Demasiados frames perdidos seguidos, reconectando...")
+                    stream.release()
+                    stream = open_stream(endpoints)
+                    consecutive_failures = 0
+                else:
+                    time.sleep(0.5)  # evita un loop apretado mientras se decide reconectar
                 continue
 
+            consecutive_failures = 0
             detections = detector.detect(frame)
             centroids = [(d.center_x, d.center_y) for d in detections]
             tracks = tracker.update(centroids)
@@ -126,7 +142,11 @@ def main() -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
-    run(args.host)
+    try:
+        run(args.host)
+    except NodeUnreachableError as exc:
+        logger.error(str(exc))
+        return 1
     return 0
 
 
