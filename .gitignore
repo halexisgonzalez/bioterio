@@ -1,0 +1,14 @@
+# PlatformIO
+.pio/
+firmware/**/include/config.h
+
+# Python (futuro servidor central)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+.vscode/
