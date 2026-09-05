@@ -35,3 +35,18 @@
 // --- Sensor de temperatura DS18B20 (opcional, se puede sumar después) ---
 #define ENABLE_TEMP_SENSOR 0
 #define TEMP_SENSOR_PIN    13
+
+// --- Seguridad (opcional) ---
+// Si se define no vacío, todos los endpoints (/stream, /capture, /status)
+// exigen el header "X-API-Key: <valor>", devolviendo 401 si no coincide.
+// Recomendado si la red del bioterio no es exclusivamente de confianza.
+// Dejar "" desactiva la autenticación (valor por defecto, más simple para
+// arrancar en una red interna ya segmentada).
+#define API_KEY ""
+
+// --- Resiliencia (opcional) ---
+// El nodo está pensado para correr 24/7 durante semanas sin supervisión.
+// Estos valores tienen defaults razonables en main.cpp; descomentar solo si
+// hace falta ajustarlos:
+// #define MIN_FREE_HEAP_BYTES 20000              // reinicia si la memoria libre cae por debajo (fragmentación)
+// #define MAX_UPTIME_BEFORE_RESTART_S (7UL * 24 * 3600) // reinicio preventivo semanal
