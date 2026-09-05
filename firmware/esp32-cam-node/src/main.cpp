@@ -219,7 +219,7 @@ void startCameraServer() {
   // El stream se sirve en un servidor/puerto aparte para no bloquear
   // /capture y /status mientras hay un cliente viendo video.
   config.server_port = 81;
-  config.ctrl_port = 32768;
+  config.ctrl_port += 1; // debe ser distinto al del primer servidor (ambos corren a la vez)
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(stream_httpd, &stream_uri);
   }
