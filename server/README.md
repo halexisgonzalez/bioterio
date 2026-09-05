@@ -64,28 +64,58 @@ YOLO_CLASSES=                # vacío = todas las clases del modelo
 uv run --package bioterio-server bioterio-debug-view <ip> --detector yolo
 ```
 
-**Estado actual — importante**: por defecto usa `yolo11n.pt`, un modelo
-pre-entrenado en COCO. **COCO no tiene una clase "ratón"/"rata"**, así que
-esto sirve para probar que el cableado funciona (carga del modelo,
-inferencia, conversión a `Detection`, tracking) pero no va a reconocer al
-roedor de forma útil — confirmado con hardware real: en una imagen de
-prueba sin ningún objeto de COCO, el modelo "adivinó" un paraguas con 46%
-de confianza en una esquina oscura cualquiera.
+**`yolo11n.pt` (default sin configurar nada más)**: modelo pre-entrenado
+en COCO. **COCO no tiene una clase "ratón"/"rata"**, así que solo sirve
+para probar que el cableado funciona (carga del modelo, inferencia,
+conversión a `Detection`, tracking) — confirmado con hardware real: en
+una imagen de prueba sin ningún objeto de COCO, el modelo "adivinó" un
+paraguas con 46% de confianza en una esquina oscura cualquiera.
 
-Para detección real de roedores hay dos caminos, ninguno resuelto todavía:
+**`models/mouse_v1.pt` — modelo propio, entrenado (estado actual del
+proyecto)**: se afinó (`fine-tuning`) un `yolo11n.pt` con el dataset
+público [DID-Rodent-YOLOv8](https://universe.roboflow.com/winter-zebrafish-test/did-rodent-yolov8)
+de Roboflow Universe (228 imágenes de entrenamiento, clase única
+"Mouse", licencia CC BY 4.0 — vista cenital en IR con cable de sensor,
+un setup de laboratorio muy similar al de este proyecto). Resultado en
+el set de validación propio del dataset: **precisión 0.999, recall 1.0,
+mAP50 0.995** — muy bueno, pero es sobre imágenes del mismo estudio que
+generó el dataset, no sobre jaulas de este bioterio.
 
-1. **Modelo pre-entrenado de terceros**: existen modelos públicos de
-   detección de roedores en [Roboflow Universe](https://universe.roboflow.com/)
-   (ej. [DID-Rodent-YOLOv8](https://universe.roboflow.com/winter-zebrafish-test/did-rodent-yolov8),
-   1510 imágenes). Requiere crear una cuenta gratuita de Roboflow, generar
-   un API key, y descargar el `.pt` — después basta con apuntar
-   `YOLO_MODEL_PATH` a ese archivo. Calidad no verificada todavía.
-2. **Modelo propio**: una vez que haya video real de un ratón en la jaula
-   final, recolectar frames, anotarlos (bounding boxes) y entrenar/afinar
-   un YOLO propio con `ultralytics` (`yolo train ...`).
+**Importante — todavía no validado contra hardware propio**: al probarlo
+con un frame real de nuestra cámara (un escritorio, sin ningún ratón)
+produjo 4 falsos positivos de baja confianza (0.16-0.54) — esperable,
+ya que por definición cualquier detección ahí es un falso positivo, pero
+también evidencia el "domain gap" típico entre el video de origen y
+nuestra cámara/jaula. La prueba real (con un ratón de verdad en la jaula
+final) todavía no se hizo.
 
-Mientras tanto, `background_subtraction` sigue siendo el detector por
-defecto — no es mejor en precisión, pero no depende de descargar nada.
+Para reproducir el entrenamiento (o repetirlo con otro dataset):
+
+```bash
+# 1. Bajar el dataset (requiere ROBOFLOW_API_KEY en .env)
+uv sync --extra roboflow
+uv run --extra roboflow python scripts/download_roboflow_model.py \
+    --workspace winter-zebrafish-test --project did-rodent-yolov8 --version 1
+
+# 2. Entrenar (fine-tuning sobre yolo11n, ~30 min en CPU)
+uv run yolo detect train \
+    data=DID-Rodent-YOLOv8-1/data.yaml \
+    model=yolo11n.pt epochs=40 imgsz=640 batch=8 \
+    project=runs name=mouse_v1 device=cpu
+
+# 3. Copiar los pesos a un lugar estable (runs/ se pisa en cada corrida)
+cp runs/detect/mouse_v1/weights/best.pt models/mouse_v1.pt
+```
+
+Otras opciones si este modelo no anda bien con hardware real:
+
+1. Buscar otro dataset/modelo en [Roboflow Universe](https://universe.roboflow.com/)
+   (búsqueda: "rodent" / "mouse" object detection) y repetir el proceso.
+2. Recolectar video real de la jaula final, anotarlo, y sumarlo al
+   entrenamiento (o entrenar desde cero con eso solo).
+
+`background_subtraction` sigue siendo el detector por defecto en
+`.env.example` — no depende de ningún modelo ni cuenta externa.
 
 **GPU**: en una máquina con GPU NVIDIA, `pip`/`uv` instalan por defecto el
 build de PyTorch sin CUDA (mucho más liviano) a menos que se apunte

@@ -13,6 +13,12 @@ dependencies = [
     "ultralytics>=8.3",
 ]
 
+# Solo hace falta para bajar un modelo entrenado de Roboflow Universe
+# (scripts/download_roboflow_model.py) — no es necesario para correr el
+# servidor ni el detector v1, por eso queda como extra separado.
+[project.optional-dependencies]
+roboflow = ["roboflow>=1.1"]
+
 [project.scripts]
 bioterio-server = "bioterio_server.main:main"
 bioterio-debug-view = "bioterio_server.debug_view:main"
