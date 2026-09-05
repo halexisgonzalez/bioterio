@@ -147,6 +147,28 @@ eficiente a este volumen de tráfico.
   tareas que reinicia el equipo si `loop()` se cuelga sin ceder CPU; por
   eso `loop()` siempre termina con un `delay()` corto.
 
+### Límite conocido: pocas conexiones simultáneas a `/stream`
+
+El ESP32 tiene un pool de sockets muy chico (confirmado con hardware
+real: alcanza con 5-8 conexiones concurrentes, incluso mal cerradas, para
+agotarlo). Cuando se agota, el nodo deja de responder en `/stream` — a
+veces incluso en `/status` — hasta que las conexiones viejas se liberan
+solas o se reinicia el equipo.
+
+**En la práctica**: evitá tener más de **un cliente a la vez** mirando el
+`/stream` de un mismo nodo (por ejemplo, `bioterio-view-stream` y
+`bioterio-debug-view` corriendo juntos contra el mismo nodo, o varias
+pestañas del navegador abiertas). El servidor central (`bioterio-server`)
+ya asume un solo consumidor por nodo, así que no tiene este problema en
+uso normal — el riesgo aparece si además corrés herramientas de
+diagnóstico contra un nodo que el servidor central ya está consumiendo.
+
+Se intentó mitigar esto a nivel firmware (timeouts más cortos +
+`lru_purge_enable` en el servidor HTTP) pero la prueba rompió el caso
+normal en vez de arreglar el de contención, así que se revertió. Si el
+pool se agota, hace falta resetear el nodo (botón físico, o reflashear).
+Diagnosticarlo bien queda como tarea pendiente.
+
 ## 10. Qué falta para el sistema completo
 
 Este firmware es solo el nodo. Los próximos pasos del proyecto son:

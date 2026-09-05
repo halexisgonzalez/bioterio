@@ -153,6 +153,12 @@ void start(const Options &options) {
 
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
+  // NOTA (resiliencia, pendiente): el pool de sockets del ESP32 es chico y
+  // se agota con un puñado de conexiones a /stream mal cerradas (visto con
+  // hardware real), dejando el nodo sordo hasta reiniciarlo. Se probó
+  // reducir recv_wait_timeout/send_wait_timeout + lru_purge_enable, pero
+  // rompió el caso normal (ni una conexión limpia respondía) — revertido.
+  // Queda pendiente diagnosticar bien antes de tocar esto de nuevo.
 
   const httpd_uri_t captureUri = {
       .uri = "/capture", .method = HTTP_GET, .handler = handleCapture, .user_ctx = nullptr};
@@ -161,9 +167,12 @@ void start(const Options &options) {
   const httpd_uri_t streamUri = {
       .uri = "/stream", .method = HTTP_GET, .handler = handleStream, .user_ctx = nullptr};
 
-  if (httpd_start(&g_httpServer, &config) == ESP_OK) {
+  const esp_err_t httpStartResult = httpd_start(&g_httpServer, &config);
+  if (httpStartResult == ESP_OK) {
     httpd_register_uri_handler(g_httpServer, &captureUri);
     httpd_register_uri_handler(g_httpServer, &statusUri);
+  } else {
+    Serial.printf("ERROR: no se pudo iniciar el servidor HTTP (0x%x)\n", httpStartResult);
   }
 
   // El streaming bloquea el hilo del servidor mientras hay un cliente
@@ -173,8 +182,11 @@ void start(const Options &options) {
   // valor por defecto) o falla al crear el socket de control interno.
   config.server_port = 81;
   config.ctrl_port += 1;
-  if (httpd_start(&g_streamServer, &config) == ESP_OK) {
+  const esp_err_t streamStartResult = httpd_start(&g_streamServer, &config);
+  if (streamStartResult == ESP_OK) {
     httpd_register_uri_handler(g_streamServer, &streamUri);
+  } else {
+    Serial.printf("ERROR: no se pudo iniciar el servidor de streaming (0x%x)\n", streamStartResult);
   }
 }
 

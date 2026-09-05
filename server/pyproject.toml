@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 bioterio-server = "bioterio_server.main:main"
+bioterio-debug-view = "bioterio_server.debug_view:main"
 
 [build-system]
 requires = ["hatchling"]
