@@ -26,9 +26,8 @@ from bioterio_tools.node_client import (
     open_stream,
 )
 
-from bioterio_server.detection.background_subtraction import (
-    BackgroundSubtractionDetector,
-)
+from bioterio_server.detection.base import Detector
+from bioterio_server.detection.factory import VALID_BACKENDS, build_detector
 from bioterio_server.tracking.centroid_tracker import CentroidTracker, Track
 
 logger = logging.getLogger(__name__)
@@ -78,10 +77,9 @@ def _draw_tracks(frame, tracks: dict[int, Track]) -> None:
         )
 
 
-def run(host: str) -> None:
+def run(host: str, detector: Detector) -> None:
     endpoints = NodeEndpoints(host=host)
     stream = open_stream(endpoints)
-    detector = BackgroundSubtractionDetector()
     tracker = CentroidTracker()
     window_name = f"Debug CV - {host} (q para salir)"
 
@@ -135,6 +133,19 @@ def run(host: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("host", help="IP o hostname del nodo (ej: 192.168.0.160 o jaula_01.local)")
+    parser.add_argument(
+        "--detector",
+        choices=VALID_BACKENDS,
+        default="background_subtraction",
+        help="Motor de detección a usar (default: background_subtraction)",
+    )
+    parser.add_argument("--yolo-model", default="yolo11n.pt", help="Ruta o nombre del modelo YOLO")
+    parser.add_argument("--yolo-confidence", type=float, default=0.4)
+    parser.add_argument(
+        "--yolo-classes",
+        default=None,
+        help="Clases a filtrar, separadas por coma (ej: 'cat,dog'). Vacío = todas.",
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -142,8 +153,16 @@ def main() -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
+
+    detector = build_detector(
+        backend=args.detector,
+        yolo_model_path=args.yolo_model,
+        yolo_confidence=args.yolo_confidence,
+        yolo_classes=args.yolo_classes.split(",") if args.yolo_classes else None,
+    )
+
     try:
-        run(args.host)
+        run(args.host, detector)
     except NodeUnreachableError as exc:
         logger.error(str(exc))
         return 1

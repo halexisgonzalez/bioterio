@@ -14,7 +14,9 @@ src/bioterio_server/
 ├── nodes.py / zones.py              → parseo de configuración (lista de nodos, zonas de interés)
 ├── detection/
 │   ├── base.py                      → interfaz Detector (Protocol) — punto de extensión
-│   └── background_subtraction.py    → detector v1: resta de fondo (MOG2), sin modelo entrenado
+│   ├── background_subtraction.py    → detector v1: resta de fondo (MOG2), sin modelo entrenado
+│   ├── yolo_detector.py             → detector basado en YOLO (ultralytics)
+│   └── factory.py                   → elige el detector según DETECTOR_BACKEND
 ├── tracking/
 │   └── centroid_tracker.py          → asigna IDs estables a los centroides detectados
 ├── pipeline/
@@ -46,10 +48,50 @@ entrenar nada, pero:
 - Necesita unos segundos al arrancar para "aprender" cómo es el fondo
   quieto (evitar mover objetos de la jaula justo al iniciar el servidor).
 
-El día que haya un dataset propio, se puede entrenar un modelo (YOLO, por
-ejemplo) e implementar un `YoloDetector` que cumpla la misma interfaz
-`Detector` (`detect(frame) -> list[Detection]`) — nada del resto del
-pipeline (tracking, métricas, storage) necesita cambiar.
+### Sobre el detector YOLO (`yolo_detector.py`)
+
+Ya existe una segunda implementación de `Detector` basada en
+[ultralytics](https://docs.ultralytics.com/) (YOLO11). Se elige con:
+
+```bash
+# en .env
+DETECTOR_BACKEND=yolo
+YOLO_MODEL_PATH=yolo11n.pt   # o la ruta a un modelo propio (.pt)
+YOLO_CONFIDENCE=0.4
+YOLO_CLASSES=                # vacío = todas las clases del modelo
+
+# o por línea de comandos, con debug_view:
+uv run --package bioterio-server bioterio-debug-view <ip> --detector yolo
+```
+
+**Estado actual — importante**: por defecto usa `yolo11n.pt`, un modelo
+pre-entrenado en COCO. **COCO no tiene una clase "ratón"/"rata"**, así que
+esto sirve para probar que el cableado funciona (carga del modelo,
+inferencia, conversión a `Detection`, tracking) pero no va a reconocer al
+roedor de forma útil — confirmado con hardware real: en una imagen de
+prueba sin ningún objeto de COCO, el modelo "adivinó" un paraguas con 46%
+de confianza en una esquina oscura cualquiera.
+
+Para detección real de roedores hay dos caminos, ninguno resuelto todavía:
+
+1. **Modelo pre-entrenado de terceros**: existen modelos públicos de
+   detección de roedores en [Roboflow Universe](https://universe.roboflow.com/)
+   (ej. [DID-Rodent-YOLOv8](https://universe.roboflow.com/winter-zebrafish-test/did-rodent-yolov8),
+   1510 imágenes). Requiere crear una cuenta gratuita de Roboflow, generar
+   un API key, y descargar el `.pt` — después basta con apuntar
+   `YOLO_MODEL_PATH` a ese archivo. Calidad no verificada todavía.
+2. **Modelo propio**: una vez que haya video real de un ratón en la jaula
+   final, recolectar frames, anotarlos (bounding boxes) y entrenar/afinar
+   un YOLO propio con `ultralytics` (`yolo train ...`).
+
+Mientras tanto, `background_subtraction` sigue siendo el detector por
+defecto — no es mejor en precisión, pero no depende de descargar nada.
+
+**GPU**: en una máquina con GPU NVIDIA, `pip`/`uv` instalan por defecto el
+build de PyTorch sin CUDA (mucho más liviano) a menos que se apunte
+explícitamente al índice de PyTorch con soporte CUDA. Con un modelo nano
+la CPU alcanza para probar; para producción con más nodos/FPS conviene
+configurar el índice CUDA (pendiente, no bloqueante).
 
 ### Sobre el tracker (importante)
 
@@ -130,5 +172,6 @@ docker compose exec mysql mysql -ubioterio -pbioterio bioterio \
 - **Pendiente / próximos pasos**: detectar oclusión total (cuando el
   animal entra a una casa cerrada y desaparece del todo) para registrar
   explícitamente el estado "oculto" en vez de simplemente dejar de
-  emitir muestras; reemplazar el detector v1 por un modelo entrenado;
-  dashboard de reportes sobre estos datos.
+  emitir muestras; conseguir un modelo YOLO que reconozca roedores de
+  verdad (ver sección de detección YOLO arriba); dashboard de reportes
+  sobre estos datos.

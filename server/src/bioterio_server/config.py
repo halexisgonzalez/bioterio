@@ -33,6 +33,11 @@ class Settings:
     movement_threshold_px: float
     max_disappeared_frames: int
 
+    detector_backend: str
+    yolo_model_path: str
+    yolo_confidence: float
+    yolo_classes: list[str] | None
+
 
 def _env_float(name: str, default: float) -> float:
     value = os.environ.get(name)
@@ -66,4 +71,13 @@ def load_settings(env_file: str | Path | None = ".env") -> Settings:
         batch_flush_interval_s=_env_float("BATCH_FLUSH_INTERVAL_S", 10.0),
         movement_threshold_px=_env_float("MOVEMENT_THRESHOLD_PX", 4.0),
         max_disappeared_frames=_env_int("MAX_DISAPPEARED_FRAMES", 30),
+        detector_backend=os.environ.get("DETECTOR_BACKEND", "background_subtraction"),
+        yolo_model_path=os.environ.get("YOLO_MODEL_PATH", "yolo11n.pt"),
+        yolo_confidence=_env_float("YOLO_CONFIDENCE", 0.4),
+        yolo_classes=_parse_yolo_classes(os.environ.get("YOLO_CLASSES", "")),
     )
+
+
+def _parse_yolo_classes(raw: str) -> list[str] | None:
+    names = [name.strip() for name in raw.split(",") if name.strip()]
+    return names or None

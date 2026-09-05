@@ -9,6 +9,11 @@ __pycache__/
 venv/
 .env
 
+# Pesos de modelos (se descargan solos o se generan al entrenar)
+*.pt
+*.onnx
+runs/
+
 # Sistema operativo / editor
 .DS_Store
 Thumbs.db

@@ -15,9 +15,7 @@ import threading
 import uuid
 
 from bioterio_server.config import load_settings
-from bioterio_server.detection.background_subtraction import (
-    BackgroundSubtractionDetector,
-)
+from bioterio_server.detection.factory import build_detector
 from bioterio_server.pipeline.node_worker import NodeWorker
 from bioterio_server.storage.models import PositionSample
 from bioterio_server.storage.mysql_repository import MySQLRepository
@@ -59,10 +57,19 @@ def main() -> int:
     workers: list[NodeWorker] = []
     for node in settings.nodes:
         repository.ensure_node_registered(node.node_id)
+        # Un detector por nodo (no compartido): la resta de fondo necesita
+        # su propio estado por cámara, y para YOLO evita tener que resolver
+        # llamadas concurrentes de varios hilos sobre el mismo modelo.
+        detector = build_detector(
+            backend=settings.detector_backend,
+            yolo_model_path=settings.yolo_model_path,
+            yolo_confidence=settings.yolo_confidence,
+            yolo_classes=settings.yolo_classes,
+        )
         worker = NodeWorker(
             node_id=node.node_id,
             host=node.host,
-            detector=BackgroundSubtractionDetector(),
+            detector=detector,
             zones=settings.zones.get(node.node_id, []),
             sample_interval_s=settings.sample_interval_s,
             movement_threshold_px=settings.movement_threshold_px,
