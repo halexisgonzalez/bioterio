@@ -12,8 +12,9 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-import cv2
 import requests
+
+from bioterio_tools.mjpeg_stream import MjpegStream
 
 logger = logging.getLogger(__name__)
 
@@ -96,18 +97,12 @@ def open_stream(
     endpoints: NodeEndpoints,
     retries: int = DEFAULT_CONNECT_RETRIES,
     backoff_s: float = DEFAULT_RETRY_BACKOFF_S,
-) -> cv2.VideoCapture:
-    """Abre el stream MJPEG, reintentando con backoff si el nodo no responde todavía.
-
-    Nota: OpenCV no permite mandar headers custom al abrir un stream por URL,
-    así que si el nodo tiene API_KEY habilitada esto va a fallar — la
-    autenticación hoy solo cubre /status y /capture (ver README).
-    """
+) -> MjpegStream:
+    """Abre el stream MJPEG, reintentando con backoff si el nodo no responde todavía."""
     for attempt in range(1, retries + 1):
-        capture = cv2.VideoCapture(endpoints.stream_url)
-        if capture.isOpened():
-            return capture
-        capture.release()
+        stream = MjpegStream(endpoints.stream_url, headers=endpoints.auth_headers)
+        if stream.open():
+            return stream
         logger.warning(
             "Intento %d/%d: no se pudo abrir %s", attempt, retries, endpoints.stream_url
         )

@@ -2,11 +2,12 @@
 .pio/
 firmware/**/include/config.h
 
-# Python (futuro servidor central)
+# Python
 __pycache__/
 *.pyc
 .venv/
 venv/
+.env
 
 # Sistema operativo / editor
 .DS_Store

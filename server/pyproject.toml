@@ -1,0 +1,31 @@
+[project]
+name = "bioterio-server"
+version = "0.1.0"
+description = "Servidor central: ingesta multi-nodo, detección/tracking y persistencia en MySQL"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "bioterio-tools",
+    "opencv-python>=4.8",
+    "numpy>=1.26",
+    "pymysql>=1.1",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+bioterio-server = "bioterio_server.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bioterio_server"]
+
+[tool.uv.sources]
+bioterio-tools = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+]
