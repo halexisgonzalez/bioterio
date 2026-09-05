@@ -1,0 +1,25 @@
+[project]
+name = "bioterio-tools"
+version = "0.1.0"
+description = "Utilidades de línea de comandos para validar y depurar los nodos ESP32-CAM del bioterio"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "opencv-python>=4.8",
+    "requests>=2.31",
+]
+
+[project.scripts]
+bioterio-view-stream = "bioterio_tools.view_stream:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bioterio_tools"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+]
