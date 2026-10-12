@@ -1,2 +1,11 @@
 [tool.uv.workspace]
 members = ["tools", "server"]
+
+[tool.uv]
+# roboflow (extra opcional de server/) depende de opencv-python-headless,
+# que comparte el módulo `cv2` con opencv-python: si se instalan los dos, el
+# headless pisa al otro y cv2.imshow deja de funcionar (bioterio-debug-view
+# y bioterio-view-stream fallan con "The function is not implemented").
+# Este override hace que nunca se instale — roboflow funciona igual con
+# opencv-python, que expone el mismo `cv2`.
+override-dependencies = ["opencv-python-headless; sys_platform == 'never'"]
