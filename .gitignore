@@ -19,6 +19,10 @@ runs/
 server/*-[0-9]/
 server/datasets/
 
+# Videos de ejemplo (varios GB) - solo se versiona el README que los describe
+data/videos/**/*.mp4
+data/outputs/
+
 # Sistema operativo / editor
 .DS_Store
 Thumbs.db
