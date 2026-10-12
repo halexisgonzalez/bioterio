@@ -31,11 +31,24 @@ def _pairwise_distances(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 class CentroidTracker:
-    def __init__(self, max_disappeared_frames: int = 30, max_match_distance_px: float = 100.0) -> None:
+    # fragment_distance_px: una detección sin emparejar que cae a menos de
+    # esta distancia de un track ya emparejado en el mismo frame se toma
+    # como un pedazo del mismo animal (el detector lo partió en 2 manchas),
+    # no como un animal nuevo. Validado con video real de campo abierto:
+    # sin esto, cada partición momentánea abría un ID nuevo que a veces se
+    # quedaba con el animal y el ID original se perdía (54 de 70 cambios de
+    # ID en 7 minutos con un solo ratón).
+    def __init__(
+        self,
+        max_disappeared_frames: int = 30,
+        max_match_distance_px: float = 100.0,
+        fragment_distance_px: float = 130.0,
+    ) -> None:
         self._next_id = 0
         self._tracks: dict[int, Track] = {}
         self._max_disappeared_frames = max_disappeared_frames
         self._max_match_distance_px = max_match_distance_px
+        self._fragment_distance_px = fragment_distance_px
 
     def update(self, centroids: list[tuple[float, float]]) -> dict[int, Track]:
         if not centroids:
@@ -80,9 +93,13 @@ class CentroidTracker:
                 if self._tracks[tid].disappeared_frames > self._max_disappeared_frames:
                     del self._tracks[tid]
 
+        matched_track_rows = sorted(matched_tracks)
         for detection_idx, (cx, cy) in enumerate(centroids):
-            if detection_idx not in matched_detections:
-                self._register(cx, cy)
+            if detection_idx in matched_detections:
+                continue
+            if matched_track_rows and distances[matched_track_rows, detection_idx].min() < self._fragment_distance_px:
+                continue  # fragmento de un animal ya emparejado
+            self._register(cx, cy)
 
         return dict(self._tracks)
 

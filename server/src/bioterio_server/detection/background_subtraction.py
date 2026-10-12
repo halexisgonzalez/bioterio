@@ -24,15 +24,39 @@ class BackgroundSubtractionDetector:
     # apenas decenas de píxeles, así que un umbral bajo (150 originalmente)
     # dejaba pasar puro ruido — confirmado con hardware real: sin sujeto
     # real en cuadro, generaba varios tracks efímeros en posiciones fijas.
-    def __init__(self, min_area_px: int = 600, max_area_px: int = 20000) -> None:
+    #
+    # merge_kernel_px: un ratón blanco sobre piso claro (o cruzando una
+    # línea oscura del piso) suele aparecer partido en 2 manchas separadas
+    # por unas decenas de píxeles — validado con video real de campo
+    # abierto: cada partición abría un track nuevo y el tracker terminaba
+    # cambiando de ID decenas de veces por minuto. Un cierre morfológico
+    # con este tamaño las une en una sola detección antes de buscar
+    # contornos.
+    #
+    # warmup_frames: mientras MOG2 todavía no aprendió el fondo, marca como
+    # "movimiento" medio cuadro — esas detecciones son basura y llenan el
+    # tracker de IDs falsos, así que se descartan.
+    def __init__(
+        self,
+        min_area_px: int = 600,
+        max_area_px: int = 20000,
+        merge_kernel_px: int = 25,
+        warmup_frames: int = 120,
+    ) -> None:
         self._subtractor = cv2.createBackgroundSubtractorMOG2(
             history=500, varThreshold=40, detectShadows=True
         )
         self._min_area_px = min_area_px
         self._max_area_px = max_area_px
+        self._merge_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (merge_kernel_px, merge_kernel_px))
+        self._warmup_frames = warmup_frames
+        self._frames_seen = 0
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
         mask = self._subtractor.apply(frame)
+        self._frames_seen += 1
+        if self._frames_seen <= self._warmup_frames:
+            return []
         # 127: descarta la zona gris que MOG2 marca como sombra (detectShadows=True),
         # nos quedamos solo con el blanco (movimiento real).
         _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
@@ -40,6 +64,7 @@ class BackgroundSubtractionDetector:
         # chico (compresión JPEG, parpadeo) antes de buscar contornos.
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
         mask = cv2.dilate(mask, np.ones((5, 5), np.uint8), iterations=2)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, self._merge_kernel)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
